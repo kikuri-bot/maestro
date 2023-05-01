@@ -1,0 +1,17 @@
+[Unit]
+Description = HTTP API server made to render crucial data for Kikuri's card game.
+After = network.target
+
+[Service]
+Type = exec
+Restart = on-failure
+ExecStart = /etc/kikuri/maestro/service/maestro.o
+WorkingDirectory= /etc/kikuri/maestro
+MemoryAccounting=true
+MemoryHigh=64M
+MemoryMax=256M
+RestartSec = 120
+TimeoutStartSec = infinity
+
+[Install]
+WantedBy = multi-user.target
