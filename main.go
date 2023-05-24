@@ -38,7 +38,7 @@ func loadEnv() {
 		logger.Error.Panic(err) // Unrecoverable!
 	}
 
-	if _, available := os.LookupEnv("APP_TOKEN"); !available {
+	if _, available := os.LookupEnv("APP_ADDRESS"); !available {
 		logger.Error.Panic("environmental file is missing credentials (invalid .env file)")
 	}
 }
