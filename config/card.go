@@ -1,5 +1,7 @@
 package config
 
+const DEFAULT_DYE_COLOR uint32 = 8289918
+
 const (
 	CHARACTER_IMAGE_X = 225
 	CHARACTER_IMAGE_Y = 350
