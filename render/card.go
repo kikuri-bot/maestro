@@ -4,38 +4,45 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
 	"image/png"
 	"maestro/config"
+	"maestro/logger"
 	"maestro/misc"
 	"os"
 )
 
-type CardRenderOptions struct {
-	CharacterID uint32
-	FrameType   config.FrameType
-	Dye         color.RGBA
-	Glow        bool
-	OffsetX     int
-	OffsetY     int
-}
+func DrawCard(canvas *image.RGBA, opt misc.CardRenderOptions) (*image.RGBA, error) {
+	if int(opt.FrameType) > len(config.FrameTable) {
+		return nil, errors.New("requested frame doesn't exist")
+	}
 
-func DrawCard(canvas *image.RGBA, opt CardRenderOptions) (*image.RGBA, error) {
-	charImgBuf, err := os.OpenFile(fmt.Sprintf("../cdn/public/character/%d.png", opt.CharacterID), os.O_RDONLY, 0755)
+	charImgPath := fmt.Sprintf("%s/public/character/%d.png", config.CDN_PATH, opt.ID)
+	charImgBuf, err := os.OpenFile(charImgPath, os.O_RDONLY, 0755)
 	if err != nil {
-		return nil, errors.New("requested character doesn't exist")
+		return nil, fmt.Errorf("requested character (ID = %d) doesn't exist", opt.ID)
 	}
 
 	characterImage, err := png.Decode(charImgBuf)
 	if err != nil {
-		return nil, errors.New("requested character's image file is malformed:" + err.Error())
+		logger.Error.Printf(`Failed to decode image of "%s" character. Original error: %s\n`, charImgPath, err.Error())
+		return nil, errors.New("failed to render character's card - please try again later and report this issue if it continues to happen")
 	}
 	defer charImgBuf.Close()
 
 	frameDetails := config.FrameTable[opt.FrameType]
 	charImgOffsetX := opt.OffsetX + ((frameDetails.SizeX - config.CHARACTER_IMAGE_X) / 2)
 	charImgOffsetY := opt.OffsetY + ((frameDetails.SizeY - config.CHARACTER_IMAGE_Y) / 2)
+
+	if canvas == nil {
+		canvas = image.NewRGBA(image.Rectangle{
+			image.Point{},
+			image.Point{
+				frameDetails.SizeX,
+				frameDetails.SizeY,
+			},
+		})
+	}
 
 	draw.Draw(
 		canvas,
@@ -54,16 +61,16 @@ func DrawCard(canvas *image.RGBA, opt CardRenderOptions) (*image.RGBA, error) {
 		draw.Src,
 	)
 
-	// Draw static model of frame on character's image.
-	if frameDetails.TwoLayerModel || !frameDetails.Dyeable {
-		staticFrameBuf, err := os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/base.png", os.O_RDONLY, 0755)
+	if frameDetails.StaticModel {
+		staticFrameBuf, err := os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/static.png", os.O_RDONLY, 0755)
 		if err != nil {
-			return nil, errors.New("requested frame (base model) doesn't exist")
+			return nil, errors.New("requested frame (static model) doesn't exist")
 		}
 
 		staticFrameImage, err := png.Decode(staticFrameBuf)
 		if err != nil {
-			return nil, errors.New("requested frame (base model) image file is malformed:" + err.Error())
+			logger.Error.Printf(`Failed to decode "%s" frame (ID = %d) static model. Original error: %s\n`, frameDetails.Name, opt.FrameType, err.Error())
+			return nil, errors.New("failed to render character's card - please try again later and report this issue if it continues to happen")
 		}
 		defer staticFrameBuf.Close()
 
@@ -79,27 +86,28 @@ func DrawCard(canvas *image.RGBA, opt CardRenderOptions) (*image.RGBA, error) {
 		)
 	}
 
-	if frameDetails.Dyeable && (opt.Dye.R != 0 || opt.Dye.G != 0 || opt.Dye.B != 0 || opt.Dye.A != 0) {
+	if frameDetails.MaskModel {
 		var (
-			dyeableFrameBuf *os.File
-			err             error
+			maskFrameBuf *os.File
+			err          error
 		)
 
 		if opt.Glow {
-			dyeableFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/glow-mask.png", os.O_RDONLY, 0755)
+			maskFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/glow-mask.png", os.O_RDONLY, 0755)
 		} else {
-			dyeableFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/mask.png", os.O_RDONLY, 0755)
+			maskFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/mask.png", os.O_RDONLY, 0755)
 		}
 
 		if err != nil {
 			return nil, errors.New("requested frame (mask model) doesn't exist")
 		}
 
-		dyeableFrameImage, err := png.Decode(dyeableFrameBuf)
+		maskFrameImage, err := png.Decode(maskFrameBuf)
 		if err != nil {
-			return nil, errors.New("requested frame (mask model) image file is malformed:" + err.Error())
+			logger.Error.Printf(`Failed to decode "%s" frame (ID = %d) mask model. Original error: %s\n`, frameDetails.Name, opt.FrameType, err.Error())
+			return nil, errors.New("failed to render character's card - please try again later and report this issue if it continues to happen")
 		}
-		defer dyeableFrameBuf.Close()
+		defer maskFrameBuf.Close()
 
 		draw.Draw(
 			canvas,
@@ -107,7 +115,7 @@ func DrawCard(canvas *image.RGBA, opt CardRenderOptions) (*image.RGBA, error) {
 				image.Point{opt.OffsetX, opt.OffsetY},
 				image.Point{frameDetails.SizeX + opt.OffsetX, frameDetails.SizeY + opt.OffsetY},
 			},
-			misc.Recolor(dyeableFrameImage, opt.Dye),
+			misc.Recolor(maskFrameImage, opt.Dye),
 			image.Point{},
 			draw.Over,
 		)

@@ -1,13 +1,12 @@
 package route
 
 import (
-	"image"
 	"image/png"
-	"maestro/config"
+	"maestro/logger"
 	"maestro/misc"
 	"maestro/render"
 	"net/http"
-	"strconv"
+	"time"
 )
 
 func ViewHandler(w http.ResponseWriter, r *http.Request) {
@@ -16,78 +15,27 @@ func ViewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		opt render.CardRenderOptions
-		fd  config.FrameDetails
-	)
-
-	if v := r.URL.Query().Get("id"); v != "" {
-		ID, err := strconv.ParseUint(v, 10, 32)
-		if err != nil {
-			http.Error(w, "character ID needs to be be uint32", http.StatusUnprocessableEntity)
-			return
-		}
-		opt.CharacterID = uint32(ID)
-	} else {
-		http.Error(w, "character ID uri param is required", http.StatusBadRequest)
-		return
-	}
-
-	if v := r.URL.Query().Get("c"); v != "" {
-		color, err := strconv.ParseUint(v, 10, 32)
-		if err != nil {
-			http.Error(w, "dye color value needs to be be uint32", http.StatusUnprocessableEntity)
-			return
-		}
-		opt.Dye = misc.ColorValueToRGBA(uint32(color))
-	} else {
-		http.Error(w, "dye color value uri param is required", http.StatusBadRequest)
-		return
-	}
-
-	if v := r.URL.Query().Get("g"); v != "" {
-		g, err := strconv.ParseBool(v)
-		if err != nil {
-			http.Error(w, "glow needs to be be bool", http.StatusUnprocessableEntity)
-			return
-		}
-		opt.Glow = g
-	} else {
-		http.Error(w, "glow uri param is required", http.StatusBadRequest)
-		return
-	}
-
-	if v := r.URL.Query().Get("ft"); v != "" {
-		fType, err := strconv.ParseUint(v, 10, 8)
-		if err != nil {
-			http.Error(w, "frame type needs to be be uint8", http.StatusUnprocessableEntity)
-			return
-		}
-		ft := config.FrameType(fType)
-		fd = config.FrameTable[ft]
-		opt.FrameType = ft
-	} else {
-		http.Error(w, "frame type uri param is required", http.StatusBadRequest)
-		return
-	}
-
-	canvas := image.NewRGBA(image.Rectangle{
-		image.Point{},
-		image.Point{
-			fd.SizeX,
-			fd.SizeY,
-		},
-	})
-
-	canvas, err := render.DrawCard(canvas, opt)
+	startedAt := time.Now()
+	cardRenderOptions, err := misc.ParseCardRenderOptions(r.URL.Query(), 1)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	canvas, err := render.DrawCard(nil, cardRenderOptions[0])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	took := time.Since(startedAt)
+	if took > time.Second*3 {
+		logger.Warn.Printf("Took %s for single card render request!\n", took.String())
+	}
+
+	w.Header().Set("X-Processing-Time", took.String())
 	w.Header().Set("Content-Type", "image/png")
-	err = png.Encode(w, canvas)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err = png.Encode(w, canvas); err != nil {
+		logger.Warn.Println("Failed to encode finished card render to response: ", err.Error())
 	}
 }

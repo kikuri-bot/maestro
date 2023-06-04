@@ -8,16 +8,19 @@ import (
 	"strconv"
 )
 
-type CardRender struct {
+type CardRenderOptions struct {
 	ID        uint32
 	Dye       color.RGBA
+	Dyed      bool
 	Glow      bool
 	FrameType config.FrameType
+	OffsetX   int
+	OffsetY   int
 }
 
 // Collects card render details from uri params. Will return http error and nil value if any param is missing or invalid.
-func ParseCardRenderOptions(uriValues url.Values, size uint8) ([]CardRender, error) {
-	res := make([]CardRender, size)
+func ParseCardRenderOptions(uriValues url.Values, size uint8) ([]CardRenderOptions, error) {
+	res := make([]CardRenderOptions, size)
 	var i uint8 = 0
 
 	for i != size {
@@ -40,7 +43,10 @@ func ParseCardRenderOptions(uriValues url.Values, size uint8) ([]CardRender, err
 				return nil, fmt.Errorf("CardRender[%s].c must be of type uint32", iStr)
 			}
 
-			res[i].Dye = ColorValueToRGBA(uint32(c))
+			if uint32(c) != config.DEFAULT_DYE_COLOR {
+				res[i].Dye = ColorValueToRGBA(uint32(c))
+				res[i].Dyed = true
+			}
 		} else {
 			res[i].Dye = ColorValueToRGBA(config.DEFAULT_DYE_COLOR)
 		}
