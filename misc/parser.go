@@ -1,13 +1,14 @@
 package misc
 
 import (
+	"fmt"
 	"image/color"
 	"maestro/config"
-	"net/http"
+	"net/url"
 	"strconv"
 )
 
-type ViewCardOptions struct {
+type CardRender struct {
 	ID        uint32
 	Dye       color.RGBA
 	Glow      bool
@@ -15,63 +16,55 @@ type ViewCardOptions struct {
 }
 
 // Collects card render details from uri params. Will return http error and nil value if any param is missing or invalid.
-func ParseCardRenderOptions(w *http.ResponseWriter, r *http.Request, size uint8) []ViewCardOptions {
-	res := make([]ViewCardOptions, size)
-	var i uint8 = 1
+func ParseCardRenderOptions(uriValues url.Values, size uint8) ([]CardRender, error) {
+	res := make([]CardRender, size)
+	var i uint8 = 0
 
-	for i-1 != size {
+	for i != size {
 		iStr := strconv.FormatUint(uint64(i), 10)
 
-		if v := r.URL.Query().Get("id" + iStr); v != "" {
+		if v := uriValues.Get("id" + iStr); v != "" {
 			ID, err := strconv.ParseUint(v, 10, 32)
 			if err != nil {
-				http.Error(*w, "character ID ("+iStr+") needs to be be uint32", http.StatusUnprocessableEntity)
-				return nil
+				return nil, fmt.Errorf("CardRender[%s].id must be of type uint32", iStr)
 			}
-			res[i-1].ID = uint32(ID)
+
+			res[i].ID = uint32(ID)
 		} else {
-			http.Error(*w, "character ID ("+iStr+") uri param is required", http.StatusBadRequest)
-			return nil
+			return nil, fmt.Errorf("CardRender[%s].id is required", iStr)
 		}
 
-		if v := r.URL.Query().Get("c" + iStr); v != "" {
-			color, err := strconv.ParseUint(v, 10, 32)
+		if v := uriValues.Get("c" + iStr); v != "" {
+			c, err := strconv.ParseUint(v, 10, 32)
 			if err != nil {
-				http.Error(*w, "dye color value ("+iStr+") needs to be be uint32", http.StatusUnprocessableEntity)
-				return nil
+				return nil, fmt.Errorf("CardRender[%s].c must be of type uint32", iStr)
 			}
-			res[i-1].Dye = ColorValueToRGBA(uint32(color))
+
+			res[i].Dye = ColorValueToRGBA(uint32(c))
 		} else {
-			http.Error(*w, "dye color value ("+iStr+") uri param is required", http.StatusBadRequest)
-			return nil
+			res[i].Dye = ColorValueToRGBA(config.DEFAULT_DYE_COLOR)
 		}
 
-		if v := r.URL.Query().Get("g" + iStr); v != "" {
+		if v := uriValues.Get("g" + iStr); v != "" {
 			g, err := strconv.ParseBool(v)
 			if err != nil {
-				http.Error(*w, "glow ("+iStr+") needs to be be bool", http.StatusUnprocessableEntity)
-				return nil
+				return nil, fmt.Errorf("CardRender[%s].g must be of type bool", iStr)
 			}
-			res[i-1].Glow = g
-		} else {
-			http.Error(*w, "glow ("+iStr+") uri param is required", http.StatusBadRequest)
-			return nil
+
+			res[i].Glow = g
 		}
 
-		if v := r.URL.Query().Get("ft" + iStr); v != "" {
+		if v := uriValues.Get("f" + iStr); v != "" {
 			fType, err := strconv.ParseUint(v, 10, 8)
 			if err != nil {
-				http.Error(*w, "frame type ("+iStr+") needs to be be uint8", http.StatusUnprocessableEntity)
-				return nil
+				return nil, fmt.Errorf("CardRender[%s].f must be of type uint8", iStr)
 			}
-			res[i-1].FrameType = config.FrameType(fType)
-		} else {
-			http.Error(*w, "frame type value ("+iStr+") uri param is required", http.StatusBadRequest)
-			return nil
+
+			res[i].FrameType = config.FrameType(fType)
 		}
 
 		i++
 	}
 
-	return res
+	return res, nil
 }
