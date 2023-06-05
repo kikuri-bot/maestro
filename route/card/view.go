@@ -35,7 +35,11 @@ func ViewHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("X-Processing-Time", took.String())
 	w.Header().Set("Content-Type", "image/png")
-	if err = png.Encode(w, canvas); err != nil {
+	enc := &png.Encoder{
+		CompressionLevel: png.NoCompression,
+	}
+
+	if err = enc.Encode(w, canvas); err != nil {
 		logger.Warn.Println("Failed to encode finished card render to response: ", err.Error())
 	}
 }
