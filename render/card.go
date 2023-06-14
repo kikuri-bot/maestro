@@ -62,7 +62,17 @@ func DrawCard(canvas *image.RGBA, opt misc.CardRenderOptions) (*image.RGBA, erro
 	)
 
 	if frameDetails.StaticModel {
-		staticFrameBuf, err := os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/static.png", os.O_RDONLY, 0755)
+		var (
+			staticFrameBuf *os.File
+			err            error
+		)
+
+		if opt.Glow {
+			staticFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/glow-static.png", os.O_RDONLY, 0755)
+		} else {
+			staticFrameBuf, err = os.OpenFile("../cdn/private/frame/"+frameDetails.Name+"/static.png", os.O_RDONLY, 0755)
+		}
+
 		if err != nil {
 			return nil, errors.New("requested frame (static model) doesn't exist")
 		}
