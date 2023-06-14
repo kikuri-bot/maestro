@@ -15,6 +15,7 @@ type FrameType uint8
 const (
 	DEFAULT_FRAME FrameType = iota
 	BETA_FRAME
+	EDO_HIGAN_FRAME
 )
 
 // Max size: 335x450 [px]
@@ -32,6 +33,13 @@ var FrameTable = map[FrameType]FrameDetails{
 		SizeX:       251,
 		SizeY:       376,
 		StaticModel: false,
+		MaskModel:   true,
+	},
+	EDO_HIGAN_FRAME: {
+		Name:        "edo-higan",
+		SizeX:       303,
+		SizeY:       376,
+		StaticModel: true,
 		MaskModel:   true,
 	},
 }
